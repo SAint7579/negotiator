@@ -38,7 +38,15 @@ const toolExecutors = {
     const { industry, location, count, userId, task } = vendorParamsSchema.parse(args || {});
 
     // Pull simple context if provided; currently used to influence naming only
-    const { systemPrompt } = await getContext({ userId, task: task || 'chat' });
+    let systemPrompt = '';
+    if (userId && typeof userId === 'string' && userId.length > 0) {
+      try {
+        const ctx = await getContext({ userId, task: task || 'chat' });
+        systemPrompt = ctx?.systemPrompt || '';
+      } catch (_e) {
+        systemPrompt = '';
+      }
+    }
 
     const specialties = [
       'Enterprise procurement', 'SMB solutions', 'SaaS integrations', 'Hardware supply',
@@ -55,7 +63,7 @@ const toolExecutors = {
       return `+1-${n()}${n()}${n()}-${n()}${n()}${n()}-${n()}${n()}${n()}${n()}`;
     }
 
-    const seed = toSlug(`${industry}-${area}-${systemPrompt}`).length;
+    const seed = toSlug(`${industry}-${area}-${systemPrompt || ''}`).length;
     function seededRand(i) {
       // very simple pseudo-random based on seed and index
       const x = Math.sin(seed * (i + 1)) * 10000;

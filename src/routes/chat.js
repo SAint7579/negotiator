@@ -59,14 +59,27 @@ router.post('/', async (req, res) => {
   const model = req.body?.model || 'gpt-4o-mini';
   const input = req.body?.message;
   let chatId = req.body?.chatId;
-  const userId = req.body?.userId;
-  const task = req.body?.task || 'chat';
+  const userIdRaw = req.body?.userId ?? req.body?.user_id ?? req.headers['x-user-id'] ?? req.query?.userId;
+  const userId = typeof userIdRaw === 'string' ? userIdRaw.trim() : (userIdRaw != null ? String(userIdRaw).trim() : undefined);
+  const taskRaw = req.body?.task ?? req.query?.task;
+  const task = typeof taskRaw === 'string' ? (taskRaw.trim() || 'chat') : (taskRaw != null ? String(taskRaw).trim() : 'chat');
 
   if (!input || typeof input !== 'string') {
     return res.status(400).json({ error: 'message is required and must be a string' });
   }
 
-  const { systemPrompt } = await getContext({ userId, task, maxTokens: 2000 });
+  const systemPromptDefault = 'You are an assistant that would help people identify negotiation partners';
+  let systemPrompt = systemPromptDefault;
+  if (userId && typeof userId === 'string' && userId.length > 0) {
+    try {
+      const ctx = await getContext({ userId, task, maxTokens: 2000 });
+      if (ctx && typeof ctx.systemPrompt === 'string' && ctx.systemPrompt.length > 0) {
+        systemPrompt = ctx.systemPrompt;
+      }
+    } catch (_e) {
+      systemPrompt = systemPromptDefault;
+    }
+  }
   let messages = [];
   if (chatId) {
     messages = readHistory(chatId);
@@ -163,9 +176,11 @@ module.exports = router;
  *                   type: integer
  */
 router.post('/context', async (req, res) => {
-  const userId = req.body?.userId;
-  const task = req.body?.task || 'chat';
-  if (!userId || typeof userId !== 'string') {
+  const userIdRaw = req.body?.userId ?? req.body?.user_id ?? req.headers['x-user-id'] ?? req.query?.userId;
+  const userId = typeof userIdRaw === 'string' ? userIdRaw.trim() : (userIdRaw != null ? String(userIdRaw).trim() : undefined);
+  const taskRaw = req.body?.task ?? req.query?.task;
+  const task = typeof taskRaw === 'string' ? (taskRaw.trim() || 'chat') : (taskRaw != null ? String(taskRaw).trim() : 'chat');
+  if (!userId || typeof userId !== 'string' || userId.length === 0) {
     return res.status(400).json({ error: 'userId is required and must be a string' });
   }
   try {
