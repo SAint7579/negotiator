@@ -1,26 +1,13 @@
 ﻿'use strict';
 
-import dotenv from 'dotenv';
-
+const dotenv = require('dotenv');
 dotenv.config({ override: true });
 
-
-import express from 'express';
-import { Persona } from '@kontext.dev/kontext-sdk';
-
-// const app = express();
-// app.use(express.json());
-
-// Initialize Kontext
-const persona = new Persona({
-  apiKey: process.env.KONTEXT_API_KEY
-});
-
-// const express = require('express');
-import cors from 'cors';
-import swaggerUi from 'swagger-ui-express';
-import { swaggerSpec } from './swagger.js';
-import chatRouter from './routes/chat.js';
+const express = require('express');
+const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const { swaggerSpec } = require('./swagger');
+const chatRouter = require('./routes/chat');
 
 
 const app = express();
@@ -72,23 +59,4 @@ app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);
 });
 
-// // Context endpoint
-// app.post('/api/context', async (req, res) => {
-//   const { userId, task } = req.body;
-  
-//   try {
-//     const context = await persona.getContext({
-//       userId,
-//       task: task || 'chat',
-//       maxTokens: 2000
-//     });
-    
-//     res.json(context);
-//   } catch (error) {
-//     if (error.code === 'UNAUTHORIZED_USER') {
-//       res.status(401).json({ error: 'User needs to connect Gmail' });
-//     } else {
-//       res.status(500).json({ error: 'Internal server error' });
-//     }
-//   }
-// });
+// Context routes removed; context is handled within /v1/chat

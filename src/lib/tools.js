@@ -1,44 +1,32 @@
 ﻿'use strict';
 
 const { z } = require('zod');
+const { getContext } = require('./context');
 
-const weatherParamsSchema = z.object({
-  location: z.string(),
-  unit: z.enum(['c', 'f']).default('c'),
-});
-
-const timeParamsSchema = z.object({
-  timezone: z.string().optional(),
+const vendorParamsSchema = z.object({
+  industry: z.string().min(1, 'industry is required'),
+  location: z.string().optional(),
+  count: z.number().int().min(1).max(25).default(5),
+  userId: z.string().optional(),
+  task: z.string().optional(),
 });
 
 const toolsSpec = [
   {
     type: 'function',
     function: {
-      name: 'get_current_weather',
-      description: 'Get current weather for a location (mocked data).',
+      name: 'generate_vendor_list',
+      description: 'Generate a list of vendors with email, phone, and speciality based on context.',
       parameters: {
         type: 'object',
         properties: {
-          location: { type: 'string', description: 'City and country, e.g. "San Francisco, US"' },
-          unit: { type: 'string', enum: ['c', 'f'], default: 'c' },
+          industry: { type: 'string', description: 'Target industry or niche' },
+          location: { type: 'string', description: 'Optional location filter (e.g. city, state, country)' },
+          count: { type: 'integer', minimum: 1, maximum: 25, default: 5 },
+          userId: { type: 'string', description: 'Optional user id for personalized context' },
+          task: { type: 'string', description: 'Optional task label for personalized context' },
         },
-        required: ['location'],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_current_time',
-      description: 'Get the current time (ISO string). Optionally specify a timezone label (not applied).',
-      parameters: {
-        type: 'object',
-        properties: {
-          timezone: { type: 'string', description: 'IANA or label (for display only).' },
-        },
-        required: [],
+        required: ['industry'],
         additionalProperties: false,
       },
     },
@@ -46,27 +34,50 @@ const toolsSpec = [
 ];
 
 const toolExecutors = {
-  async get_current_weather(args) {
-    const { location, unit } = weatherParamsSchema.parse(args || {});
-    const celsius = 22;
-    const fahrenheit = Math.round((celsius * 9) / 5 + 32);
-    const temperature = unit === 'f' ? fahrenheit : celsius;
-    return {
-      location,
-      unit,
-      temperature,
-      condition: 'sunny',
-      source: 'mock',
-    };
-  },
+  async generate_vendor_list(args) {
+    const { industry, location, count, userId, task } = vendorParamsSchema.parse(args || {});
 
-  async get_current_time(args) {
-    const { timezone } = timeParamsSchema.parse(args || {});
-    const now = new Date();
-    return {
-      iso: now.toISOString(),
-      timezone: timezone || 'UTC',
-    };
+    // Pull simple context if provided; currently used to influence naming only
+    const { systemPrompt } = await getContext({ userId, task: task || 'chat' });
+
+    const specialties = [
+      'Enterprise procurement', 'SMB solutions', 'SaaS integrations', 'Hardware supply',
+      'Logistics', 'Consulting', 'Maintenance', 'Implementation', 'Data services', 'Training'
+    ];
+    const area = location || 'General';
+
+    function toSlug(words) {
+      return words.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    function makePhone() {
+      const n = () => Math.floor(Math.random() * 10);
+      return `+1-${n()}${n()}${n()}-${n()}${n()}${n()}-${n()}${n()}${n()}${n()}`;
+    }
+
+    const seed = toSlug(`${industry}-${area}-${systemPrompt}`).length;
+    function seededRand(i) {
+      // very simple pseudo-random based on seed and index
+      const x = Math.sin(seed * (i + 1)) * 10000;
+      return x - Math.floor(x);
+    }
+
+    const vendors = Array.from({ length: count }).map((_, i) => {
+      const r = seededRand(i);
+      const spec = specialties[Math.floor(r * specialties.length)];
+      const base = `${industry} ${spec}`.split(' ').slice(0, 3).join(' ');
+      const name = `${base} Partners ${i + 1}`;
+      const slug = toSlug(`${industry}-${spec}-${i + 1}`);
+      return {
+        name,
+        email: `${slug}@example.com`,
+        phone: makePhone(),
+        speciality: spec,
+        location: area,
+      };
+    });
+
+    return { vendors };
   },
 };
 

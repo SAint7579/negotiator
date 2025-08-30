@@ -4,6 +4,7 @@ const express = require('express');
 const OpenAI = require('openai');
 const { toolsSpec, executeToolCall } = require('../lib/tools');
 const { generateId, readHistory, writeHistory } = require('../lib/chatStore');
+const { getContext } = require('../lib/context');
 
 const router = express.Router();
 
@@ -30,6 +31,12 @@ const router = express.Router();
  *               chatId:
  *                 type: string
  *                 description: Provide to continue an existing chat. Omit to start a new chat.
+ *               userId:
+ *                 type: string
+ *                 description: Optional user ID to personalize context
+ *               task:
+ *                 type: string
+ *                 description: Optional task label to personalize context
  *             required: [message]
  *     responses:
  *       200:
@@ -52,12 +59,14 @@ router.post('/', async (req, res) => {
   const model = req.body?.model || 'gpt-4o-mini';
   const input = req.body?.message;
   let chatId = req.body?.chatId;
+  const userId = req.body?.userId;
+  const task = req.body?.task || 'chat';
 
   if (!input || typeof input !== 'string') {
     return res.status(400).json({ error: 'message is required and must be a string' });
   }
 
-  const systemPrompt = 'You are an assistant that would help people identify negotiation partners';
+  const { systemPrompt } = await getContext({ userId, task, maxTokens: 2000 });
   let messages = [];
   if (chatId) {
     messages = readHistory(chatId);
@@ -114,53 +123,3 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
-
-// Context endpoint
-router.post('/api/context', async (req, res) => {
-  const { userId, task } = req.body;
-  
-  try {
-    const context = await persona.getContext({
-      userId,
-      task: task || 'chat',
-      maxTokens: 2000
-    });
-    
-    res.json(context);
-  } catch (error) {
-    if (error.code === 'UNAUTHORIZED_USER') {
-      res.status(401).json({ error: 'User needs to connect Gmail' });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-});
-
-// Chat endpoint with AI integration
-router.post('/api/chat', async (req, res) => {
-  const { userId, message } = req.body;
-  
-  try {
-    // Get personalized context
-    const context = await persona.getContext({
-      userId,
-      task: 'chat'
-    });
-    
-    // Use with OpenAI (or any AI provider)
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: context.systemPrompt },
-        { role: 'user', content: message }
-      ]
-    });
-    
-    res.json({ 
-      response: completion.choices[0].message.content 
-    });
-  } catch (error) {
-    console.error('Chat error:', error);
-    res.status(500).json({ error: 'Failed to generate response' });
-  }
-});
