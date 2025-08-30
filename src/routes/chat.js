@@ -23,18 +23,10 @@ const router = express.Router();
  *               model:
  *                 type: string
  *                 default: gpt-4o-mini
- *               messages:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     role:
- *                       type: string
- *                       enum: [system, user, assistant, tool]
- *                     content:
- *                       type: string
- *                   required: [role, content]
- *             required: [messages]
+ *               message:
+ *                 type: string
+ *                 description: The user's message
+ *             required: [message]
  *     responses:
  *       200:
  *         description: The assistant's final message after any tool calls
@@ -54,11 +46,17 @@ router.post('/', async (req, res) => {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const model = req.body?.model || 'gpt-4o-mini';
-  let messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const input = req.body?.message;
 
-  if (messages.length === 0) {
-    return res.status(400).json({ error: 'messages is required and must be an array' });
+  if (!input || typeof input !== 'string') {
+    return res.status(400).json({ error: 'message is required and must be a string' });
   }
+
+  const systemPrompt = 'You are an assistant that would help people identify negotiation partners';
+  let messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: input },
+  ];
 
   try {
     let completion = await openai.chat.completions.create({
