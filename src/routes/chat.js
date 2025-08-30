@@ -36,7 +36,7 @@ const router = express.Router();
  *                 description: Optional user ID to personalize context
  *               task:
  *                 type: string
- *                 description: Optional task label to personalize context
+ *                 description: "Optional task label to personalize context"
  *             required: [message]
  *     responses:
  *       200:
@@ -123,3 +123,56 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * @openapi
+ * /v1/chat/context:
+ *   post:
+ *     summary: Fetch personalized context for a user/task (Kontext)
+ *     tags:
+ *       - chat
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID to fetch context for
+ *               task:
+ *                 type: string
+ *                 description: "Optional task label (default: chat)"
+ *             required: [userId]
+ *     responses:
+ *       200:
+ *         description: Context payload
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 systemPrompt:
+ *                   type: string
+ *                 messages:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 maxTokens:
+ *                   type: integer
+ */
+router.post('/context', async (req, res) => {
+  const userId = req.body?.userId;
+  const task = req.body?.task || 'chat';
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'userId is required and must be a string' });
+  }
+  try {
+    const ctx = await getContext({ userId, task, maxTokens: 2000 });
+    return res.json(ctx);
+  } catch (err) {
+    const status = err.status || err.statusCode || 500;
+    return res.status(status).json({ error: err.message || 'Failed to fetch context' });
+  }
+});

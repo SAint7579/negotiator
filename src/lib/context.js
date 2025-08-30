@@ -11,19 +11,19 @@ async function getPersona() {
 }
 
 async function getContext({ userId, task = 'chat', maxTokens = 2000 } = {}) {
-  try {
-    const client = await getPersona();
-    const ctx = await client.getContext({ userId, task, maxTokens });
-    return ctx;
-  } catch (_e) {
-    const basePrompt = 'You are an assistant that would help people identify negotiation partners';
-    let personalized = '';
-    if (userId) {
-      personalized = ` You are conversing with user ${userId}. Task: ${task}.`;
-    }
-    const systemPrompt = `${basePrompt}.${personalized}`.trim();
-    return { systemPrompt, messages: [], maxTokens };
-  }
+  // try {
+  const client = await getPersona();
+  const ctx = await client.getContext({ userId, task, maxTokens });
+  return ctx;
+  // } catch (_e) {
+  //   const basePrompt = 'You are an assistant that would help people identify negotiation partners';
+  //   let personalized = '';
+  //   if (userId) {
+  //     personalized = ` You are conversing with user ${userId}. Task: ${task}.`;
+  //   }
+  //   const systemPrompt = `${basePrompt}.${personalized}`.trim();
+  //   return { systemPrompt, messages: [], maxTokens };
+  // }
 }
 
 module.exports = { getContext };
