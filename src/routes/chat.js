@@ -3,6 +3,7 @@
 const express = require('express');
 const OpenAI = require('openai');
 const { toolsSpec, executeToolCall } = require('../lib/tools');
+const { generateId, readHistory, writeHistory } = require('../lib/chatStore');
 
 const router = express.Router();
 
@@ -26,6 +27,9 @@ const router = express.Router();
  *               message:
  *                 type: string
  *                 description: The user's message
+ *               chatId:
+ *                 type: string
+ *                 description: Provide to continue an existing chat. Omit to start a new chat.
  *             required: [message]
  *     responses:
  *       200:
@@ -47,16 +51,21 @@ router.post('/', async (req, res) => {
 
   const model = req.body?.model || 'gpt-4o-mini';
   const input = req.body?.message;
+  let chatId = req.body?.chatId;
 
   if (!input || typeof input !== 'string') {
     return res.status(400).json({ error: 'message is required and must be a string' });
   }
 
   const systemPrompt = 'You are an assistant that would help people identify negotiation partners';
-  let messages = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: input },
-  ];
+  let messages = [];
+  if (chatId) {
+    messages = readHistory(chatId);
+  }
+  if (messages.length === 0) {
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+  messages.push({ role: 'user', content: input });
 
   try {
     let completion = await openai.chat.completions.create({
@@ -95,7 +104,9 @@ router.post('/', async (req, res) => {
       messages.push(assistantMessage);
     }
 
-    return res.json({ messages, response: completion });
+    if (!chatId) chatId = generateId();
+    writeHistory(chatId, messages);
+    return res.json({ chatId, messages, response: completion });
   } catch (err) {
     const status = err.status || 500;
     return res.status(status).json({ error: err.message || 'Unexpected error' });
