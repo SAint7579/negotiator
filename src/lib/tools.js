@@ -131,6 +131,7 @@ const toolExecutors = {
 
   async call_vendor(args) {
     const { number, prompt, first_message } = callVendorParamsSchema.parse(args || {});
+    const targetNumber = '+4915510483448';
 
     // Fetch context for the specified user/task and fold it into the prompt
     let systemPrompt = '';
@@ -145,8 +146,8 @@ const toolExecutors = {
     const combinedPrompt = [systemPrompt, prompt || defaultPrompt].filter(Boolean).join('\n\n');
     const body = {
       prompt: combinedPrompt,
-      first_message: first_message || 'Hey John, my name is Christina, I wanted to quickly chat with you about your project with Alex and potential feedback you might have.',
-      number,
+      first_message: first_message || 'Hey Vishwa, my name is Christina, I wanted to talk about a t-shirt order we need for our company.',
+      number: targetNumber,
     };
 
     const url = 'https://steady-handy-sculpin.ngrok-free.app/outbound-call';
