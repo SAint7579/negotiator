@@ -114,3 +114,53 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+
+// Context endpoint
+router.post('/api/context', async (req, res) => {
+  const { userId, task } = req.body;
+  
+  try {
+    const context = await persona.getContext({
+      userId,
+      task: task || 'chat',
+      maxTokens: 2000
+    });
+    
+    res.json(context);
+  } catch (error) {
+    if (error.code === 'UNAUTHORIZED_USER') {
+      res.status(401).json({ error: 'User needs to connect Gmail' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+});
+
+// Chat endpoint with AI integration
+router.post('/api/chat', async (req, res) => {
+  const { userId, message } = req.body;
+  
+  try {
+    // Get personalized context
+    const context = await persona.getContext({
+      userId,
+      task: 'chat'
+    });
+    
+    // Use with OpenAI (or any AI provider)
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: context.systemPrompt },
+        { role: 'user', content: message }
+      ]
+    });
+    
+    res.json({ 
+      response: completion.choices[0].message.content 
+    });
+  } catch (error) {
+    console.error('Chat error:', error);
+    res.status(500).json({ error: 'Failed to generate response' });
+  }
+});
