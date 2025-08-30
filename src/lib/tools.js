@@ -2,6 +2,7 @@
 
 const { z } = require('zod');
 const { getContext } = require('./context');
+const { getSupabase } = require('./supabase');
 
 const vendorParamsSchema = z.object({
   industry: z.string().min(1, 'industry is required'),
@@ -9,6 +10,12 @@ const vendorParamsSchema = z.object({
   count: z.number().int().min(1).max(25).default(5),
   userId: z.string().optional(),
   task: z.string().optional(),
+});
+
+const callVendorParamsSchema = z.object({
+  number: z.string().min(1, 'number is required'),
+  prompt: z.string().optional(),
+  first_message: z.string().optional(),
 });
 
 const toolsSpec = [
@@ -27,6 +34,23 @@ const toolsSpec = [
           task: { type: 'string', description: 'Optional task label for personalized context' },
         },
         required: ['industry'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'call_vendor',
+      description: 'Initiate an outbound call with a vendor using a context-enriched prompt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          number: { type: 'string', description: 'Phone number in E.164 format, e.g. +15551234567' },
+          prompt: { type: 'string', description: 'Optional additional prompt instructions' },
+          first_message: { type: 'string', description: 'Optional first message to open the call' },
+        },
+        required: ['number'],
         additionalProperties: false,
       },
     },
@@ -85,7 +109,56 @@ const toolExecutors = {
       };
     });
 
+    // Insert into Supabase suppliers
+    try {
+      const supabase = getSupabase();
+      const rows = vendors.map(v => ({
+        name: v.name,
+        email: v.email,
+        phone: v.phone,
+        specialty: v.speciality,
+      }));
+      const { error } = await supabase.from('suppliers').insert(rows);
+      if (error) {
+        throw error;
+      }
+    } catch (_e) {
+      // swallow DB errors but return vendors; optionally log
+    }
+
     return { vendors };
+  },
+
+  async call_vendor(args) {
+    const { number, prompt, first_message } = callVendorParamsSchema.parse(args || {});
+
+    // Fetch context for the specified user/task and fold it into the prompt
+    let systemPrompt = '';
+    try {
+      const ctx = await getContext({ userId: 'bae2add0-c999-4ce1-bb6a-987afaa7cfd9', task: 'chat', maxTokens: 2000 });
+      systemPrompt = ctx?.systemPrompt || '';
+    } catch (_e) {
+      systemPrompt = '';
+    }
+
+    const defaultPrompt = 'Please start an outbound call about project updates.';
+    const combinedPrompt = [systemPrompt, prompt || defaultPrompt].filter(Boolean).join('\n\n');
+    const body = {
+      prompt: combinedPrompt,
+      first_message: first_message || 'Hey John, my name is Christina, I wanted to quickly chat with you about your project with Alex and potential feedback you might have.',
+      number,
+    };
+
+    const url = 'https://steady-handy-sculpin.ngrok-free.app/outbound-call';
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const text = await resp.text();
+    let json;
+    try { json = JSON.parse(text); } catch (_e) { json = { raw: text }; }
+    return { ok: resp.ok, status: resp.status, response: json };
   },
 };
 
